@@ -42,7 +42,7 @@ static long long rater_limit(long long tat, long long burst,
    * spaced events. If you like leaky buckets, think of it as how frequently
    * the bucket leaks one unit. */
   long long emission_interval =
-      (long long)(((double)period_in_sec / count_per_period) * 1000000LL);
+      (long long)((((double)period_in_sec) / count_per_period) * 1000000LL);
 
   /* delay_variation_tolerance is our flexibility:
    * How far can you deviate from the nominal equally spaced schedule?
@@ -87,7 +87,7 @@ static long long rater_limit(long long tat, long long burst,
     *remaining = next / emission_interval;
   }
 
-  *ttl = *ttl / 1000000LL;
+  *ttl = *ttl / 1000000LL ? *ttl / 1000000LL : 1;
 
   return new_tat;
 }
