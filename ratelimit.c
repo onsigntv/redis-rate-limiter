@@ -112,6 +112,7 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
         RedisModule_CreateString(ctx, raw_tat_str, len);
 
     if (RedisModule_StringToLongLong(tat_str, &tat) != REDISMODULE_OK) {
+      RedisModule_FreeString(ctx, tat_str);
       RedisModule_CloseKey(key);
       return RedisModule_ReplyWithError(ctx, "ERR invalid stored rater");
     }
