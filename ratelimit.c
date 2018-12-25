@@ -26,10 +26,17 @@
 
 /* rater_limit checks whether a particular key has exceeded a rate limit.
  * burst defines the maximum amount permitted in a single instant while
- * count_per_period / period_in_sec defines the maximum sustained rate. */
+ * count_per_period / period_in_sec defines the maximum sustained rate.
+ *
+ * If the rate limit has not been exceeded, the underlying storage
+ * is updated by the supplied quantity. For example, a quantity of
+ * 1 might be used to rate limit a single request while a greater
+ * quantity could rate limit based on the size of a file upload in
+ * megabytes. If quantity is 0, no update is performed allowing
+ * you to "peek" at the state of the rate limiter for a given key. */
 static long long rater_limit(long long tat, long long burst,
                              long long count_per_period,
-                             long long period_in_sec, long long amount,
+                             long long period_in_sec, long long quantity,
                              long long *limited, long long *limit,
                              long long *remaining, long long *retry_after,
                              long long *ttl) {
@@ -60,7 +67,7 @@ static long long rater_limit(long long tat, long long burst,
     tat = now;
   }
 
-  long long increment = emission_interval * amount;
+  long long increment = emission_interval * quantity;
   long long new_tat;
   if (now > tat) {
     new_tat = now + increment;
@@ -145,19 +152,19 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
     return RedisModule_ReplyWithError(ctx, "ERR invalid period_in_sec");
   }
 
-  long long amount = 1L;
+  long long quantity = 1L;
   if (argc == 6) {
-    if (RedisModule_StringToLongLong(argv[5], &amount) != REDISMODULE_OK ||
-        amount < 1) {
+    if (RedisModule_StringToLongLong(argv[5], &quantity) != REDISMODULE_OK ||
+        quantity < 0) {
       RedisModule_CloseKey(key);
-      return RedisModule_ReplyWithError(ctx, "ERR invalid amount");
+      return RedisModule_ReplyWithError(ctx, "ERR invalid quantity");
     }
   }
 
   /* After all that preamble, do the Cell-Rate Limiting calculations. */
   long long limited = 0, limit = 0, remaining = 0, retry_after = 0, ttl = 0;
   long long new_tat =
-      rater_limit(tat, burst, count_per_period, period_in_sec, amount, &limited,
+      rater_limit(tat, burst, count_per_period, period_in_sec, quantity, &limited,
                   &limit, &remaining, &retry_after, &ttl);
 
   /* If there is a new theoretical arrival time, store it back on the key. */
