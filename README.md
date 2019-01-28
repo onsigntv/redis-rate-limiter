@@ -15,7 +15,7 @@ While those projects where designed to be modular and flexible this is a straigh
 
 ## Install
 
-Clone and build this project from source. 
+Clone and build this project from source.
 
 ```
 $ git clone https://github.com/onsigntv/redis-rate-limiter.git
@@ -96,13 +96,21 @@ The meaning of each array item is:
 
 ### Multiple Rate Limits
 
-Implement different types of rate limiting by using different key names:
+Implement different types of rate limiting by using different key names.
 
 ```
 RATER.LIMIT user123-read-rate 15 30 60
 RATER.LIMIT user123-write-rate 5 10 60
 ```
 
+
+### Peeking The Value of a Key
+
+You can use a quantity of `0` to inspect the current limit of a key without modifying it.
+
+```
+RATER.LIMIT user123 15 30 60 0
+```
 
 ## License
 
