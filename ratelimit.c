@@ -21,8 +21,41 @@
  */
 
 #include <stdlib.h>
-#include <sys/time.h>
+#include <time.h>
 #include "redismodule.h"
+
+/* Users can decide what's more important to them:
+ *  1. the ability to maintain existing limits when a failover process is
+ *     initiated by Redis Sentinel.
+ *  2. incorrect rate-limits due to changes in the system time-of-day clock.
+ *
+ * By default, we prefer to use the realtime clock (1) rather than the monotonic
+ * clock (2).
+ */
+#ifdef USE_MONOTONIC_CLOCK
+#define RATE_LIMITER_CLOCK CLOCK_MONOTONIC
+#else /*!USE_MONOTONIC_CLOCK*/
+#define RATE_LIMITER_CLOCK CLOCK_REALTIME
+#endif /*USE_MONOTONIC_CLOCK*/
+
+/* nanoseconds per second */
+#define NSEC_PER_SEC 1000000000LL
+
+/* microseconds per second */
+#define USEC_PER_SEC 1000000LL
+
+/* miliseconds per second */
+#define MSEC_PER_SEC 1000LL
+
+/* get_nanos returns the nanosecond-precise time of the specified clock
+ * (RATE_LIMITER_CLOCK). This clock could be either a realtime clock (default)
+ * or a monotonic clock, depending on the requirements of the user.
+ */
+static long long get_nanos() {
+  struct timespec ts;
+  clock_gettime(RATE_LIMITER_CLOCK, &ts);
+  return ((long long) ts.tv_sec) * NSEC_PER_SEC + ts.tv_nsec;
+}
 
 /* rater_limit checks whether a particular key has exceeded a rate limit.
  * burst defines the maximum amount permitted in a single instant while
@@ -49,17 +82,15 @@ static long long rater_limit(long long tat, long long burst,
    * spaced events. If you like leaky buckets, think of it as how frequently
    * the bucket leaks one unit. */
   long long emission_interval =
-      (long long)(((double)period_in_sec / count_per_period) * 1000000LL);
+      (long long) ((double) (period_in_sec * NSEC_PER_SEC) / count_per_period);
 
   /* delay_variation_tolerance is our flexibility:
    * How far can you deviate from the nominal equally spaced schedule?
    * If you like leaky buckets, think about it as the size of your bucket. */
   long long delay_variation_tolerance = emission_interval * (burst + 1);
 
-  /* current time in microseconds to increase precision */
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  long long now = ((long long)tv.tv_sec) * 1000000LL + tv.tv_usec;
+  /* current time in nanoseconds to increase precision. */
+  long long now = get_nanos();
 
   /* tat refers to the theoretical arrival time that would be expected
    * from equally spaced requests at exactly the rate limit. */
@@ -83,7 +114,7 @@ static long long rater_limit(long long tat, long long burst,
     *limited = 1;
     *ttl = tat - now;
     if (increment <= delay_variation_tolerance) {
-      *retry_after = -diff / 1000000LL;
+      *retry_after = -diff / NSEC_PER_SEC;
     }
   } else {
     *ttl = new_tat - now;
@@ -94,7 +125,7 @@ static long long rater_limit(long long tat, long long burst,
     *remaining = next / emission_interval;
   }
 
-  *ttl = *ttl / 1000000LL;
+  *ttl = *ttl / USEC_PER_SEC;
 
   return new_tat;
 }
@@ -164,15 +195,15 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   /* After all that preamble, do the Cell-Rate Limiting calculations. */
   long long limited = 0, limit = 0, remaining = 0, retry_after = 0, ttl = 0;
   long long new_tat =
-      rater_limit(tat, burst, count_per_period, period_in_sec, quantity, &limited,
-                  &limit, &remaining, &retry_after, &ttl);
+      rater_limit(tat, burst, count_per_period, period_in_sec, quantity,
+                  &limited, &limit, &remaining, &retry_after, &ttl);
 
   /* If there is a new theoretical arrival time, store it back on the key. */
   if (new_tat > 0) {
     RedisModuleString *new_tat_str =
         RedisModule_CreateStringFromLongLong(ctx, new_tat);
     RedisModule_StringSet(key, new_tat_str);
-    RedisModule_SetExpire(key, ttl * 1000);
+    RedisModule_SetExpire(key, ttl);
     RedisModule_FreeString(ctx, new_tat_str);
   }
 
@@ -188,7 +219,7 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   /* Retry after this many of seconds to get through or -1 if not limited. */
   RedisModule_ReplyWithLongLong(ctx, retry_after);
   /* Amount of seconds to wait until both the burst and the rate restarts. */
-  RedisModule_ReplyWithLongLong(ctx, ttl);
+  RedisModule_ReplyWithLongLong(ctx, ttl / MSEC_PER_SEC);
 
   return REDISMODULE_OK;
 }

@@ -118,4 +118,4 @@ This is free software under the terms of MIT the license (see the file
 `LICENSE` for details).
 
 [gcra]: https://en.wikipedia.org/wiki/Generic_cell_rate_algorithm
-[redis-modules]: https://github.com/antirez/redis/blob/unstable/src/modules/INTRO.md
+[redis-modules]: https://redis.io/topics/modules-intro
