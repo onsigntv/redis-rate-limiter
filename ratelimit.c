@@ -24,6 +24,20 @@
 #include <time.h>
 #include "redismodule.h"
 
+/* Users can decide what's more important to them:
+ *  1. the ability to maintain existing limits when a failover process is
+ *     initiated by Redis Sentinel.
+ *  2. incorrect rate-limits due to changes in the system time-of-day clock.
+ *
+ * By default, we prefer to use the realtime clock (1) rather than the monotonic
+ * clock (2).
+ */
+#ifdef USE_MONOTONIC_CLOCK
+#define RATE_LIMITER_CLOCK CLOCK_MONOTONIC
+#else /*!USE_MONOTONIC_CLOCK*/
+#define RATE_LIMITER_CLOCK CLOCK_REALTIME
+#endif /*USE_MONOTONIC_CLOCK*/
+
 /* nanoseconds per second */
 #define NSEC_PER_SEC 1000000000LL
 
@@ -33,11 +47,13 @@
 /* miliseconds per second */
 #define MSEC_PER_SEC 1000LL
 
-/* get_nanos returns the nanosecond-precise time of the realtime clock.
+/* get_nanos returns the nanosecond-precise time of the specified clock
+ * (RATE_LIMITER_CLOCK). This clock could be either a realtime clock (default)
+ * or a monotonic clock, depending on the requirements of the user.
  */
 static long long get_nanos() {
   struct timespec ts;
-  clock_gettime(CLOCK_REALTIME, &ts);
+  clock_gettime(RATE_LIMITER_CLOCK, &ts);
   return ((long long) ts.tv_sec) * NSEC_PER_SEC + ts.tv_nsec;
 }
 
