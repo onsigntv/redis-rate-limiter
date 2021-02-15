@@ -27,6 +27,9 @@
 /* nanoseconds per second */
 #define NSEC_PER_SEC 1000000000LL
 
+/* microseconds per second */
+#define USEC_PER_SEC 1000000LL
+
 /* miliseconds per second */
 #define MSEC_PER_SEC 1000LL
 
@@ -106,7 +109,7 @@ static long long rater_limit(long long tat, long long burst,
     *remaining = next / emission_interval;
   }
 
-  *ttl = *ttl / NSEC_PER_SEC;
+  *ttl = *ttl / USEC_PER_SEC;
 
   return new_tat;
 }
@@ -184,7 +187,7 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
     RedisModuleString *new_tat_str =
         RedisModule_CreateStringFromLongLong(ctx, new_tat);
     RedisModule_StringSet(key, new_tat_str);
-    RedisModule_SetExpire(key, ttl * MSEC_PER_SEC);
+    RedisModule_SetExpire(key, ttl);
     RedisModule_FreeString(ctx, new_tat_str);
   }
 
@@ -200,7 +203,7 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
   /* Retry after this many of seconds to get through or -1 if not limited. */
   RedisModule_ReplyWithLongLong(ctx, retry_after);
   /* Amount of seconds to wait until both the burst and the rate restarts. */
-  RedisModule_ReplyWithLongLong(ctx, ttl);
+  RedisModule_ReplyWithLongLong(ctx, ttl / MSEC_PER_SEC);
 
   return REDISMODULE_OK;
 }
