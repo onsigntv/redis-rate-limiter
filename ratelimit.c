@@ -203,8 +203,8 @@ int RedisModule_OnLoad(RedisModuleCtx *ctx, RedisModuleString **argv,
   }
 
   if (RedisModule_CreateCommand(ctx, "rater.limit", RaterLimit_RedisCommand,
-                                "write deny-oom random", 0, 0,
-                                0) == REDISMODULE_ERR) {
+                                "write deny-oom random", 1, 1,
+                                1) == REDISMODULE_ERR) {
     return REDISMODULE_ERR;
   }
 
