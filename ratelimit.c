@@ -204,6 +204,12 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
         RedisModule_CreateStringFromLongLong(ctx, new_tat);
     RedisModule_StringSet(key, new_tat_str);
     RedisModule_SetExpire(key, ttl);
+
+#ifndef USE_MONOTONIC_CLOCK
+    /* Check https://github.com/redis/redis/issues/8608 for more */
+    RedisModule_Replicate(ctx, "PSETEX", "sls", argv[1], ttl, new_tat_str);
+#endif
+
     RedisModule_FreeString(ctx, new_tat_str);
   }
 
