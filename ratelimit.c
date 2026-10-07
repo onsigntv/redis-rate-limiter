@@ -198,8 +198,8 @@ int RaterLimit_RedisCommand(RedisModuleCtx *ctx, RedisModuleString **argv,
       rater_limit(tat, burst, count_per_period, period_in_sec, quantity,
                   &limited, &limit, &remaining, &retry_after, &ttl);
 
-  /* If there is a new theoretical arrival time, store it back on the key. */
-  if (new_tat > 0) {
+  /* Store the new theoretical arrival time unless this is a read-only peek. */
+  if (quantity > 0 && new_tat > 0) {
     RedisModuleString *new_tat_str =
         RedisModule_CreateStringFromLongLong(ctx, new_tat);
     RedisModule_StringSet(key, new_tat_str);
